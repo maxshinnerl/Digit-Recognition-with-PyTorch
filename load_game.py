@@ -7,6 +7,9 @@ from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
 import torch.nn as nn
 import torch.optim as optim
+import matplotlib.pyplot as plt
+import numpy as np
+import os
 
 
 def run_game():
@@ -15,9 +18,10 @@ def run_game():
     """
 
     model = load_model()
+    down = False
 
     pygame.init()
-    surface = pygame.display.set_mode((280, 280)) # can change, but will be easier to convert to 28x28 for model.
+    surface = pygame.display.set_mode((500, 500)) # can change, but will be easier to convert to 28x28 for model.
     pygame.display.set_caption("Draw a single digit (0-9)")
 
     # colors
@@ -47,27 +51,41 @@ def run_game():
         if left_click == 1:
             for x in range(pen_size):
                 for y in range(pen_size):
-                    surface.set_at((px + x - 10, py + y - 10), black)
+                    surface.set_at((px + x - 5, py + y - 5), black)
 
         if right_click == 1:
             surface.fill(white)
 
-        # functionality is janky, using a bool to ensure only one call to model on (any) keypress
-        if event.type == pygame.KEYDOWN:
+
+        keys = pygame.key.get_pressed()
+        
+        # on spacebar press
+        if keys[32] == 1:
             down = True
 
-        if event.type == pygame.KEYUP:
-            if down is True:
-                # call model here -- get_single_prediction(model, image)
-                # TODO: just have to get the surface as a 28x28 array --> len 784 list of pixels.
-                # can either just convert to an array if that works, or just save and re-load as an image.
-                # latter is probably easier but would probably be slow.  There is functionality for the former but it seems weird.
-                # should try doing this in notebook to do like imshow stuff on the surface
-                down = False
 
+        if (down is True) & (keys[32] == 0):
+            down = False
+           
+            # call model here -- get_single_prediction(model, image)
+            # TODO: just have to get the surface as a 28x28 array --> len 784 list of pixels.
+            # can either just convert to an array if that works, or just save and re-load as an image.
+            # latter is probably easier but would probably be slow.  There is functionality for the former but it seems weird.
+            # should try doing this in notebook to do like imshow stuff on the surface
+            
 
-            # else do nothing
+            imgdata = pygame.surfarray.array3d(surface).swapaxes(0,1)
+            imgdata = imgdata[:,:,0]
+            imgdata = np.abs(255 - imgdata)
 
+            imgdata = cv2.resize(imgdata, (28, 28))
+
+            img_tensor = torch.tensor(imgdata.flatten()).float()
+
+            show_image_from_list(list(img_tensor))
+
+            pred = get_single_prediction(model, img_tensor)
+            print("prediction:", pred, flush=True)
 
 class FeedForward2Layer(nn.Module):
     def __init__(self, input_size=784, hidden_size=64, output_size=10):
@@ -105,6 +123,12 @@ def get_single_prediction(model, image):
     yhat = model(image)
     return(torch.argmax(yhat).item())
 
+
+def show_image_from_list(image):
+    img = image.copy()
+    img = np.array(img).reshape(28,28)
+    plt.imshow(img, cmap='gray_r')
+    plt.show()
 
 if __name__ == '__main__':
     run_game()
